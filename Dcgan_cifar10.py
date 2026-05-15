@@ -45,8 +45,30 @@ def weights_init(m):
         nn.init.normal_(m.weight.data, 1.0, 0.02)
         nn.init.constant_(m.bias.data, 0)
 
+#utlities functions
+def save_sample_grid(tensor, epoch):
+    os.makedirs("samples", exist_ok=True)
+    grid = vutils.make_grid(tensor[:64], nrow=8, normalize=True, value_range=(-1, 1))
+    grid_np = grid.permute(1, 2, 0).numpy()
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.imshow(grid_np)
+    ax.axis("off")
+    ax.set_title(f"Generated Images — Epoch {epoch}", fontsize=14)
+    fig.savefig(f"samples/epoch_{epoch:03d}.png", bbox_inches="tight", dpi=100)
+    plt.close(fig)
 
 
+def plot_losses(g_losses, d_losses):
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.plot(g_losses, label="Generator Loss",     color="#e07b54", linewidth=2)
+    ax.plot(d_losses, label="Discriminator Loss", color="#4e9af1", linewidth=2)
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("BCE Loss")
+    ax.set_title("DCGAN Training Loss Curve")
+    ax.legend()
+    ax.grid(alpha=0.3)
+    fig.savefig("loss_curve.png", bbox_inches="tight", dpi=120)
+    plt.close(fig)
 
 #Generaor is a pytorch model that gives a gradient tracking and everything else pytorch needs to treat it as a trainable model
 
@@ -158,108 +180,82 @@ def train(epochs=EPOCHS):
 
 
     for epoch in range(1, epochs + 1):
-            #accumulates the sum of batch losses across the epoch
-            epoch_g_loss = 0.0
-            epoch_d_loss = 0.0
+        #accumulates the sum of batch losses across the epoch
+        epoch_g_loss = 0.0
+        epoch_d_loss = 0.0
 
+
+        
+        for i, (real_imgs, _) in enumerate(loader):
+            #moves batch from CPU to GPU if avalible, but always laods CPU first
+            real_imgs = real_imgs.to(DEVICE)
+            N = real_imgs.size(0)
+
+            real_labels = torch.ones(N, device=DEVICE)
+            fake_labels = torch.zeros(N, device=DEVICE)
+
+            # ── Train Discriminator ──────────────────
+            #clears the gradient buffer 
+            D.zero_grad()
 
             
-            for i, (real_imgs, _) in enumerate(loader):
-                #moves batch from CPU to GPU if avalible, but always laods CPU first
-                real_imgs = real_imgs.to(DEVICE)
-                N = real_imgs.size(0)
+            out_real = D(real_imgs)
+            loss_real = criterion(out_real, real_labels)
 
-                real_labels = torch.ones(N, device=DEVICE)
-                fake_labels = torch.zeros(N, device=DEVICE)
+            z = torch.randn(N, LATENT_DIM, 1, 1, device=DEVICE)
+            #generates a batch of fake images from the noise vectors
+            fake_imgs = G(z)
 
-                # ── Train Discriminator ──────────────────
-                #clears the gradient buffer 
-                D.zero_grad()
+            #runs fakes through D 
+            out_fake = D(fake_imgs.detach())
+            loss_fake = criterion(out_fake, fake_labels)
 
-                
-                out_real = D(real_imgs)
-                loss_real = criterion(out_real, real_labels)
+            loss_D = loss_real + loss_fake
+            loss_D.backward()
+            opt_D.step()
 
-                z = torch.randn(N, LATENT_DIM, 1, 1, device=DEVICE)
-                #generates a batch of fake images from the noise vectors
-                fake_imgs = G(z)
+            # ── Train Generator ──────────────────────
 
-                #runs fakes through D 
-                out_fake = D(fake_imgs.detach())
-                loss_fake = criterion(out_fake, fake_labels)
+            #clears G gradient buffer
+            G.zero_grad()
 
-                loss_D = loss_real + loss_fake
-                loss_D.backward()
-                opt_D.step()
-
-                # ── Train Generator ──────────────────────
-
-                #clears G gradient buffer
-                G.zero_grad()
-
-                #reuses the same fake imgs but now we want to fool D so we label them as real
-                out_fake2 = D(fake_imgs)
-                loss_G = criterion(out_fake2, real_labels)
-                loss_G.backward()
-                opt_G.step()
+            #reuses the same fake imgs but now we want to fool D so we label them as real
+            out_fake2 = D(fake_imgs)
+            loss_G = criterion(out_fake2, real_labels)
+            loss_G.backward()
+            opt_G.step()
 
 
-                #accumulates the batch losses into the epoch totals for later averaging and plotting
-                epoch_g_loss += loss_G.item()
-                epoch_d_loss += loss_D.item()
+            #accumulates the batch losses into the epoch totals for later averaging and plotting
+            epoch_g_loss += loss_G.item()
+            epoch_d_loss += loss_D.item()
 
 
-            #calculates the average loss for the epoch and appends to the list of losses for plotting later
-            avg_g = epoch_g_loss / len(loader)
-            avg_d = epoch_d_loss / len(loader)
-            g_losses.append(avg_g)
-            d_losses.append(avg_d)
+        #calculates the average loss for the epoch and appends to the list of losses for plotting later
+        avg_g = epoch_g_loss / len(loader)
+        avg_d = epoch_d_loss / len(loader)
+        g_losses.append(avg_g)
+        d_losses.append(avg_d)
 
-            print(f"[Epoch {epoch:03d}/{epochs}]  Loss_D: {avg_d:.4f}  Loss_G: {avg_g:.4f}")
+        print(f"[Epoch {epoch:03d}/{epochs}]  Loss_D: {avg_d:.4f}  Loss_G: {avg_g:.4f}")
 
-            with torch.no_grad():
-                samples = G(fixed_z).cpu()
-            save_sample_grid(samples, epoch)
-
-
-            #saves a checkpoint of the model every 5 epochs and at the end of training
-            if epoch % 5 == 0 or epoch == epochs:
-                torch.save({
-                    "epoch": epoch,
-                    "G_state": G.state_dict(),
-                    "D_state": D.state_dict(),
-                }, f"checkpoints/dcgan_epoch{epoch:03d}.pt")
+        with torch.no_grad():
+            samples = G(fixed_z).cpu()
+        save_sample_grid(samples, epoch)
 
 
-plot_losses(g_losses, d_losses)
-print("Done. Samples in ./samples/  |  Loss curve: loss_curve.png")
-
-#these are some utility functions
-
-def save_sample_grid(tensor, epoch):
-    os.makedirs("samples", exist_ok=True)
-    grid = vutils.make_grid(tensor[:64], nrow=8, normalize=True, value_range=(-1, 1))
-    grid_np = grid.permute(1, 2, 0).numpy()
-    fig, ax = plt.subplots(figsize=(8, 8))
-    ax.imshow(grid_np)
-    ax.axis("off")
-    ax.set_title(f"Generated Images — Epoch {epoch}", fontsize=14)
-    fig.savefig(f"samples/epoch_{epoch:03d}.png", bbox_inches="tight", dpi=100)
-    plt.close(fig)
+        #saves a checkpoint of the model every 5 epochs and at the end of training
+        if epoch % 5 == 0 or epoch == epochs:
+            torch.save({
+                "epoch": epoch,
+                "G_state": G.state_dict(),
+                "D_state": D.state_dict(),
+            }, f"checkpoints/dcgan_epoch{epoch:03d}.pt")
 
 
-def plot_losses(g_losses, d_losses):
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(g_losses, label="Generator Loss",     color="#e07b54", linewidth=2)
-    ax.plot(d_losses, label="Discriminator Loss", color="#4e9af1", linewidth=2)
-    ax.set_xlabel("Epoch")
-    ax.set_ylabel("BCE Loss")
-    ax.set_title("DCGAN Training Loss Curve")
-    ax.legend()
-    ax.grid(alpha=0.3)
-    fig.savefig("loss_curve.png", bbox_inches="tight", dpi=120)
-    plt.close(fig)
 
+    plot_losses(g_losses, d_losses)
+    print("Done. Samples in ./samples/  |  Loss curve: loss_curve.png")
 
 if __name__ == "__main__":
     train()
