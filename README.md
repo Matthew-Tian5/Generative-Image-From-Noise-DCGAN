@@ -10,9 +10,9 @@ Based on [Radford et al. (2015) — Unsupervised Representation Learning with De
 
 Training progression over 30 epochs on CIFAR-10 (CPU):
 
-| Epoch 1                                    | Epoch 10                                    | Epoch 20                                    | Epoch 30                                    |
-| ------------------------------------------ | ------------------------------------------- | ------------------------------------------- | ------------------------------------------- |
-| ![Epoch 1](samples_showcase/epoch_001.png) | ![Epoch 10](samples_showcase/epoch_010.png) | ![Epoch 20](samples_showcase/epoch_020.png) | ![Epoch 30](samples_showcase/epoch_030.png) |
+| Epoch 1                           | Epoch 10                           | Epoch 20                           | Epoch 30                           |
+| --------------------------------- | ---------------------------------- | ---------------------------------- | ---------------------------------- |
+| ![Epoch 1](samples/epoch_001.png) | ![Epoch 10](samples/epoch_010.png) | ![Epoch 20](samples/epoch_020.png) | ![Epoch 30](samples/epoch_030.png) |
 
 The Generator starts from pure noise and progressively learns colour, texture, and structure. By epoch 30 it produces recognisable animals, vehicles, and objects across CIFAR-10's 10 classes.
 
