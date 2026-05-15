@@ -107,3 +107,48 @@ class Discriminator(nn.Module):
 
     def forward(self, x):
         return self.net(x).view(-1)
+    
+
+
+
+def get_dataloader():
+    #chains multipke transfomrs into one
+    transform = transforms.Compose([
+        transforms.Resize(IMG_SIZE),
+        #converts a PIL image with pixel values into a pytorch tensor 
+        transforms.ToTensor(),
+        #applies a normalization to the tensor. it has the mean, and the std 
+        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+    ])
+    #downloads CIFAR10 dataset and applies the transform to each image
+    #and gives 50,000 training images
+    dataset = torchvision.datasets.CIFAR10(
+        root="./data", train=True, download=True, transform=transform
+    )
+    return DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=2)
+
+def train(epochs=EPOCHS):
+    print(f"Using device: {DEVICE}")
+    # create output folders if they don't exist
+    os.makedirs("checkpoints", exist_ok=True)
+    os.makedirs("samples", exist_ok=True)
+
+    loader = get_dataloader()
+    #creates the modle and moves all of it to CPU
+    G = Generator().to(DEVICE)
+    D = Discriminator().to(DEVICE)
+    #recurivaly applies weights function to every layer in G
+    G.apply(weights_init)
+    D.apply(weights_init)
+
+    #one loss function shared by both networks 
+    criterion = nn.BCELoss()
+    #creates an Adam optimiser that only knows about G parameter and one for D parameters
+    # important since we dont want interference between the two optimisers. 
+    opt_G = optim.Adam(G.parameters(), lr=LR, betas=(BETA1, BETA2))
+    opt_D = optim.Adam(D.parameters(), lr=LR, betas=(BETA1, BETA2))
+
+    #64 noise vectors that never change during training 
+    fixed_z = torch.randn(64, LATENT_DIM, 1, 1, device=DEVICE)
+
+    g_losses, d_losses = [], []
