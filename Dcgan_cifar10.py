@@ -78,3 +78,32 @@ class Generator(nn.Module):
         )
     def forward(self, z):
         return self.net(z)
+    
+
+#this strucutre mirros G, the generator, but in revsere. 
+# G stars narrow and grows wide while d starts wife and collapses into a single output.
+class Discriminator(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        D = CHANNELS_D
+        self.net = nn.Sequential(
+            nn.Conv2d(IMG_CHANNELS, D, kernel_size=4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(0.2, inplace=True),
+            self._block(D,     D * 2),
+            self._block(D * 2, D * 4),
+            self._block(D * 4, D * 8),
+            nn.Conv2d(D * 8, 1, kernel_size=2, stride=1, padding=0, bias=False),
+            nn.Sigmoid()
+        )
+
+    @staticmethod
+    def _block(in_c, out_c):
+        return nn.Sequential(
+            nn.Conv2d(in_c, out_c, kernel_size=4, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(out_c),
+            nn.LeakyReLU(0.2, inplace=True)
+        )
+
+    def forward(self, x):
+        return self.net(x).view(-1)
