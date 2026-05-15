@@ -231,3 +231,31 @@ for epoch in range(1, epochs + 1):
             }, f"checkpoints/dcgan_epoch{epoch:03d}.pt")
 
 
+plot_losses(g_losses, d_losses)
+print("Done. Samples in ./samples/  |  Loss curve: loss_curve.png")
+
+#these are some utility functions
+
+def save_sample_grid(tensor, epoch):
+    os.makedirs("samples", exist_ok=True)
+    grid = vutils.make_grid(tensor[:64], nrow=8, normalize=True, value_range=(-1, 1))
+    grid_np = grid.permute(1, 2, 0).numpy()
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.imshow(grid_np)
+    ax.axis("off")
+    ax.set_title(f"Generated Images — Epoch {epoch}", fontsize=14)
+    fig.savefig(f"samples/epoch_{epoch:03d}.png", bbox_inches="tight", dpi=100)
+    plt.close(fig)
+
+
+def plot_losses(g_losses, d_losses):
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.plot(g_losses, label="Generator Loss",     color="#e07b54", linewidth=2)
+    ax.plot(d_losses, label="Discriminator Loss", color="#4e9af1", linewidth=2)
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("BCE Loss")
+    ax.set_title("DCGAN Training Loss Curve")
+    ax.legend()
+    ax.grid(alpha=0.3)
+    fig.savefig("loss_curve.png", bbox_inches="tight", dpi=120)
+    plt.close(fig)
