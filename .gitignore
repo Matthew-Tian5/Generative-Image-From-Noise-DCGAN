@@ -1,0 +1,7 @@
+echo "data/
+checkpoints/
+samples/
+loss_curve.png
+__pycache__/
+*.pyc
+.DS_Store" > .gitignore
