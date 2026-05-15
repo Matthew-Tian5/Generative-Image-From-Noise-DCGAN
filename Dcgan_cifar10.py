@@ -1,4 +1,6 @@
 import os
+from unittest import loader
+from unittest import loader
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -152,3 +154,80 @@ def train(epochs=EPOCHS):
     fixed_z = torch.randn(64, LATENT_DIM, 1, 1, device=DEVICE)
 
     g_losses, d_losses = [], []
+
+
+
+for epoch in range(1, epochs + 1):
+        #accumulates the sum of batch losses across the epoch
+        epoch_g_loss = 0.0
+        epoch_d_loss = 0.0
+
+
+        
+        for i, (real_imgs, _) in enumerate(loader):
+            #moves batch from CPU to GPU if avalible, but always laods CPU first
+            real_imgs = real_imgs.to(DEVICE)
+            N = real_imgs.size(0)
+
+            real_labels = torch.ones(N, device=DEVICE)
+            fake_labels = torch.zeros(N, device=DEVICE)
+
+            # ── Train Discriminator ──────────────────
+            #clears the gradient buffer 
+            D.zero_grad()
+
+            
+            out_real = D(real_imgs)
+            loss_real = criterion(out_real, real_labels)
+
+            z = torch.randn(N, LATENT_DIM, 1, 1, device=DEVICE)
+            #generates a batch of fake images from the noise vectors
+            fake_imgs = G(z)
+
+            #runs fakes through D 
+            out_fake = D(fake_imgs.detach())
+            loss_fake = criterion(out_fake, fake_labels)
+
+            loss_D = loss_real + loss_fake
+            loss_D.backward()
+            opt_D.step()
+
+            # ── Train Generator ──────────────────────
+
+            #clears G gradient buffer
+            G.zero_grad()
+
+            #reuses the same fake imgs but now we want to fool D so we label them as real
+            out_fake2 = D(fake_imgs)
+            loss_G = criterion(out_fake2, real_labels)
+            loss_G.backward()
+            opt_G.step()
+
+
+            #accumulates the batch losses into the epoch totals for later averaging and plotting
+            epoch_g_loss += loss_G.item()
+            epoch_d_loss += loss_D.item()
+
+
+        #calculates the average loss for the epoch and appends to the list of losses for plotting later
+        avg_g = epoch_g_loss / len(loader)
+        avg_d = epoch_d_loss / len(loader)
+        g_losses.append(avg_g)
+        d_losses.append(avg_d)
+
+        print(f"[Epoch {epoch:03d}/{epochs}]  Loss_D: {avg_d:.4f}  Loss_G: {avg_g:.4f}")
+
+        with torch.no_grad():
+            samples = G(fixed_z).cpu()
+        save_sample_grid(samples, epoch)
+
+
+        #saves a checkpoint of the model every 5 epochs and at the end of training
+        if epoch % 5 == 0 or epoch == epochs:
+            torch.save({
+                "epoch": epoch,
+                "G_state": G.state_dict(),
+                "D_state": D.state_dict(),
+            }, f"checkpoints/dcgan_epoch{epoch:03d}.pt")
+
+
