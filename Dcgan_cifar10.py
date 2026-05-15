@@ -259,3 +259,8 @@ def plot_losses(g_losses, d_losses):
     ax.grid(alpha=0.3)
     fig.savefig("loss_curve.png", bbox_inches="tight", dpi=120)
     plt.close(fig)
+
+
+if __name__ == "__main__":
+    train()
+    
